@@ -1,0 +1,97 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Wed Jul 13 18:08:30 2022
+
+@author: erenk
+"""
+
+#libraries
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import tensorflow as tf
+
+#training set
+dataset_train = pd.read_csv('AMZN.csv')
+training_set = dataset_train.iloc[:, 1:2].values
+#feature scaling
+from sklearn.preprocessing import MinMaxScaler
+sc = MinMaxScaler(feature_range = (0, 1))
+training_set_scaled = sc.fit_transform(training_set)
+##60 adımlı dataset oluşturmak(1 sonuçlu)
+X_train = []
+y_train = []
+for i in range(60, 3272):
+    X_train.append(training_set_scaled[i-60:i, 0])
+    y_train.append(training_set_scaled[i, 0])
+X_train, y_train = np.array(X_train), np.array(y_train)
+#reshaping
+X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+#keras and its packages
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import LSTM
+from keras.layers import Dropout
+#initialising rnn
+regressor = Sequential()
+#Adding the first LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 60, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+regressor.add(Dropout(0.2))
+#Adding the second LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 60, return_sequences = True))
+regressor.add(Dropout(0.2))
+#Adding the third LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 60, return_sequences = True))
+regressor.add(Dropout(0.2))
+#Adding the fourth LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 60))
+regressor.add(Dropout(0.2))
+#adiing output label
+regressor.add(Dense(units = 1))
+#compiling(toplamak derlemek) rnn
+regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
+#fitting
+regressor.fit(X_train, y_train, epochs = 250, batch_size = 163)
+#test dataset added
+dataset_test = pd.read_csv('AMZN_TEST.csv')
+real_stock_price = dataset_test.iloc[:, 1:2].values
+#predicted stockprice
+dataset_total = pd.concat((dataset_train['Open'], dataset_test['Open']), axis = 0)
+inputs = dataset_total[len(dataset_total) - len(dataset_test) - 60:].values
+inputs = inputs.reshape(-1,1)
+inputs = sc.transform(inputs)
+X_test = []
+for i in range(60, 71):
+    X_test.append(inputs[i-60:i, 0])
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+predicted_stock_price = regressor.predict(X_test)
+predicted_stock_price = sc.inverse_transform(predicted_stock_price)
+
+from sklearn.metrics import r2_score, mean_squared_error
+from sklearn.metrics import mean_absolute_error as mae
+print(' R2 score')
+print(r2_score(real_stock_price, predicted_stock_price))
+
+
+print(' MAE score')
+print(mae(real_stock_price,predicted_stock_price))
+
+
+print(' MApE score')
+print(mae(real_stock_price, predicted_stock_price)*100)
+
+
+print('MSE score')
+print(mean_squared_error(real_stock_price, predicted_stock_price))
+
+
+print("--------------------")
+
+plt.plot(real_stock_price, color = 'red', label = 'Real Amazon Stock Price')
+plt.plot(predicted_stock_price, color = 'blue', label = 'Predicted Amazon Stock Price')
+plt.title('Amazon Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('Amazon Stock Price')
+plt.legend()
+plt.show()
